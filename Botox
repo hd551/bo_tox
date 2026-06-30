@@ -1,75 +1,63 @@
--- ====================================================
--- سكربت دلتا - تحكم بحجم الصدر (نسخة احترافية)
--- ميزات: شريط تمرير، كتابة رقم، زر تكبير، سحب، إخفاء/إظهار، تشويش بسيط
--- ====================================================
+-- =============================================
+-- سكربت تحكم بحجم الصدر – نسخة تعمل في دلتا
+-- =============================================
 
 (function()
-    -- [[ دالة فك التشفير البسيطة (تخلي الكود صعب للقشف) ]]
-    local function dec(s)
-        local r = ""
-        for i = 1, #s do
-            r = r .. string.char(string.byte(s, i) ~ 42) -- مفتاح XOR 42
-        end
-        return r
-    end
+    -- المتغيرات الأساسية
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local TweenService = game:GetService("TweenService")
 
-    -- [[ المتغيرات المشوشة ]]
-    local _G = getfenv and getfenv() or _G
-    local gs = _G.game
-    local ps = gs:GetService(dec("\x5B\x0F\x12\x1A\x06\x07")) -- Players
-    local rs = gs:GetService(dec("\x53\x0B\x16\x14\x0B\x14\x17\x0B\x16")) -- RunService
-    local uis = gs:GetService(dec("\x56\x14\x16\x0B\x17\x0F\x15\x12\x14\x0B\x15")) -- UserInputService
-    local ts = gs:GetService(dec("\x57\x1B\x0E\x0B\x0E\x14")) -- TweenService
-    local hs = gs:GetService(dec("\x49\x14\x15\x15\x1B\x17\x0B\x14\x15")) -- HttpService (احتياطي)
+    local player = Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
 
-    local plr = ps.LocalPlayer
-    local char = plr.Character or plr.CharacterAdded:Wait()
-    local hum = char:WaitForChild(dec("\x49\x14\x0F\x1C\x1E\x0F\x15")) -- Humanoid
-    local torso = char:FindFirstChild(dec("\x57\x1E\x17\x14\x1E")) or char:FindFirstChild(dec("\x56\x17\x17\x0B\x17\x1C\x1E\x17\x14\x1E")) -- Torso or UpperTorso
-
-    -- [[ المتغيرات الأساسية ]]
-    local chestVal = 1.0
-    local maxVal = 10
+    -- حدود الحجم
     local minVal = 0.5
+    local maxVal = 10
+    local chestVal = 1.5  -- القيمة الابتدائية
     local isOpen = true
 
-    -- [[ دالة تحديث حجم الصدر ]]
+    -- دالة تحديث حجم الصدر
     local function applyChest(val)
         chestVal = math.clamp(val, minVal, maxVal)
         if not torso then return end
-        local s = torso.Size
-        torso.Size = Vector3.new(chestVal, s.Y, s.Z)
-        -- تحديث النص في الزر اذا موجود
+        local size = torso.Size
+        torso.Size = Vector3.new(chestVal, size.Y, size.Z)
+        -- تحديث النصوص إن وجدت
         if valLabel then valLabel.Text = string.format("%.1f", chestVal) end
+        if textBox then textBox.Text = string.format("%.1f", chestVal) end
     end
 
-    -- [[ إعادة الربط عند الموت ]]
-    plr.CharacterAdded:Connect(function(newChar)
-        char = newChar
-        hum = char:WaitForChild(dec("\x49\x14\x0F\x1C\x1E\x0F\x15"))
-        torso = char:FindFirstChild(dec("\x57\x1E\x17\x14\x1E")) or char:FindFirstChild(dec("\x56\x17\x17\x0B\x17\x1C\x1E\x17\x14\x1E"))
+    -- إعادة الربط عند تغيير الشخصية
+    player.CharacterAdded:Connect(function(newChar)
+        character = newChar
+        humanoid = character:WaitForChild("Humanoid")
+        torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
         if torso then applyChest(chestVal) end
     end)
 
-    -- [[ حلقة لتثبيت الحجم (يخلي السكربت قوي وما يرجع لوضعه الطبيعي) ]]
-    rs.Heartbeat:Connect(function()
+    -- تثبيت الحجم كل إطار (قوي)
+    RunService.Heartbeat:Connect(function()
         if torso and torso.Size.X ~= chestVal then
             local s = torso.Size
             torso.Size = Vector3.new(chestVal, s.Y, s.Z)
         end
     end)
 
-    -- ========================
-    -- بناء الواجهة (GUI)
-    -- ========================
-    local screenGui = Instance.new(dec("\x53\x0B\x17\x0B\x0B\x0E\x14\x18\x15")) -- ScreenGui
-    screenGui.Name = dec("\x4C\x1E\x1C\x15\x14\x17\x0F") -- "GuiMain"
-    screenGui.Parent = plr:WaitForChild(dec("\x50\x0B\x17\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- PlayerGui
+    -- =========================================
+    -- إنشاء واجهة المستخدم (GUI)
+    -- =========================================
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ChestGUI"
+    screenGui.Parent = player:WaitForChild("PlayerGui")
 
     -- =========================================
-    -- 1. الزر العائم (يظهر ويخفي القائمة)
+    -- 1. الزر العائم (Toggle)
     -- =========================================
-    local toggleBtn = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- ImageButton
+    local toggleBtn = Instance.new("ImageButton")
     toggleBtn.Size = UDim2.new(0, 55, 0, 55)
     toggleBtn.Position = UDim2.new(0, 20, 0, 100)
     toggleBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
@@ -77,29 +65,27 @@
     toggleBtn.Parent = screenGui
     toggleBtn.ZIndex = 10
     -- شكل دائري
-    local corner1 = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17")) -- UICorner
+    local corner1 = Instance.new("UICorner")
     corner1.CornerRadius = UDim.new(1, 0)
     corner1.Parent = toggleBtn
-    -- حدود مضيئة
-    local stroke1 = Instance.new(dec("\x56\x15\x13\x17\x17\x1C\x14\x0F\x18")) -- UIStroke
+    -- حدود
+    local stroke1 = Instance.new("UIStroke")
     stroke1.Color = Color3.fromRGB(255, 255, 255)
     stroke1.Thickness = 1.5
     stroke1.Transparency = 0.6
     stroke1.Parent = toggleBtn
-
-    -- ايقونة الزر
-    local icon = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- ImageButton (نفسه لكن نضعه كلون)
+    -- أيقونة
+    local icon = Instance.new("ImageLabel")
     icon.Size = UDim2.new(0, 30, 0, 30)
     icon.Position = UDim2.new(0.5, -15, 0.5, -15)
     icon.BackgroundTransparency = 1
-    icon.Image = dec("\x72\x62\x7A\x6A\x7D\x79\x78\x38\x7A\x6C\x60\x7A\x66\x6D\x78\x7D\x78\x7B") -- "rbxassetid://123456" لكن استخدم النص العادي للأيقونة
     icon.Image = "rbxassetid://6031091054" -- أيقونة ترس
     icon.Parent = toggleBtn
 
     -- =========================================
     -- 2. القائمة الرئيسية
     -- =========================================
-    local mainFrame = Instance.new(dec("\x47\x17\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 330, 0, 280)
     mainFrame.Position = UDim2.new(0.5, -165, 0.5, -140)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
@@ -108,19 +94,18 @@
     mainFrame.ZIndex = 5
     mainFrame.Visible = true
 
-    -- تأثير الزجاج (Glassmorphism)
-    local corner2 = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17")) -- UICorner
+    -- زوايا
+    local corner2 = Instance.new("UICorner")
     corner2.CornerRadius = UDim.new(0, 16)
     corner2.Parent = mainFrame
-
-    local stroke2 = Instance.new(dec("\x56\x15\x13\x17\x17\x1C\x14\x0F\x18")) -- UIStroke
+    -- حدود
+    local stroke2 = Instance.new("UIStroke")
     stroke2.Color = Color3.fromRGB(255, 255, 255)
     stroke2.Thickness = 1.2
     stroke2.Transparency = 0.7
     stroke2.Parent = mainFrame
-
-    -- تدرج خلفية
-    local grad = Instance.new(dec("\x55\x17\x0B\x15\x1D\x0B\x0E\x14\x18\x15")) -- UIGradient
+    -- تدرج
+    local grad = Instance.new("UIGradient")
     grad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 40)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 20))
@@ -128,16 +113,16 @@
     grad.Parent = mainFrame
 
     -- شريط العنوان (للتحريك)
-    local titleBar = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 35)
     titleBar.BackgroundTransparency = 1
     titleBar.Parent = mainFrame
 
-    local titleLabel = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextLabel
+    local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -20, 1, 0)
     titleLabel.Position = UDim2.new(0, 10, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = dec("\x4A\x1C\x18\x12\x14\x17\x0B\x04\x0A\x08\x1B\x2C") -- "🚀 Chest Pro"
+    titleLabel.Text = "🚀 Chest Pro"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.TextSize = 16
     titleLabel.Font = Enum.Font.GothamBold
@@ -145,17 +130,17 @@
     titleLabel.Parent = titleBar
 
     -- زر إغلاق القائمة (داخلي)
-    local closeInnerBtn = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextButton
+    local closeInnerBtn = Instance.new("TextButton")
     closeInnerBtn.Size = UDim2.new(0, 30, 0, 30)
     closeInnerBtn.Position = UDim2.new(1, -35, 0, 2)
     closeInnerBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
     closeInnerBtn.BackgroundTransparency = 0.3
-    closeInnerBtn.Text = dec("\x58\x23") -- "✕"
+    closeInnerBtn.Text = "✕"
     closeInnerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     closeInnerBtn.TextSize = 16
     closeInnerBtn.Font = Enum.Font.GothamBold
     closeInnerBtn.Parent = titleBar
-    local cc = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local cc = Instance.new("UICorner")
     cc.CornerRadius = UDim.new(1, 0)
     cc.Parent = closeInnerBtn
     closeInnerBtn.MouseButton1Click:Connect(function()
@@ -166,17 +151,17 @@
     -- =========================================
     -- 3. زر تكبير الصدر
     -- =========================================
-    local bigBtn = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextButton
+    local bigBtn = Instance.new("TextButton")
     bigBtn.Size = UDim2.new(0, 150, 0, 40)
     bigBtn.Position = UDim2.new(0.5, -75, 0, 45)
     bigBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     bigBtn.BackgroundTransparency = 0.25
-    bigBtn.Text = dec("\x5A\x1E\x2B\x18\x21\x2C\x16") -- "🔥 تكبير"
+    bigBtn.Text = "🔥 تكبير"
     bigBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     bigBtn.TextSize = 18
     bigBtn.Font = Enum.Font.GothamSemibold
     bigBtn.Parent = mainFrame
-    local bc = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local bc = Instance.new("UICorner")
     bc.CornerRadius = UDim.new(0, 10)
     bc.Parent = bigBtn
 
@@ -184,70 +169,67 @@
         applyChest(chestVal + 0.5)
         -- تحديث موقع الشريط
         local newPos = (chestVal - minVal) / (maxVal - minVal)
-        sliderBtn.Position = UDim2.new(0, newPos * (sliderBar.AbsoluteSize.X - sliderBtn.AbsoluteSize.X), 0, -6)
-        if valLabel then valLabel.Text = string.format("%.1f", chestVal) end
-        if textBox then textBox.Text = string.format("%.1f", chestVal) end
+        local barWidth = sliderBar.AbsoluteSize.X
+        sliderBtn.Position = UDim2.new(0, newPos * barWidth - 11, 0, -6)
+        fillBar.Size = UDim2.new(newPos, 0, 1, 0)
     end)
 
     -- =========================================
     -- 4. شريط التمرير (Slider)
     -- =========================================
-    local sliderContainer = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local sliderContainer = Instance.new("Frame")
     sliderContainer.Size = UDim2.new(0, 260, 0, 30)
     sliderContainer.Position = UDim2.new(0.5, -130, 0, 100)
     sliderContainer.BackgroundTransparency = 1
     sliderContainer.Parent = mainFrame
 
-    local sliderBar = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local sliderBar = Instance.new("Frame")
     sliderBar.Size = UDim2.new(1, 0, 0, 8)
     sliderBar.Position = UDim2.new(0, 0, 0.5, -4)
     sliderBar.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
     sliderBar.BackgroundTransparency = 0.4
     sliderBar.Parent = sliderContainer
-    local sc = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local sc = Instance.new("UICorner")
     sc.CornerRadius = UDim.new(1, 0)
     sc.Parent = sliderBar
 
-    -- شريط التقدم (Fill)
-    local fillBar = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local fillBar = Instance.new("Frame")
     fillBar.Size = UDim2.new(0, 0, 1, 0)
     fillBar.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     fillBar.BackgroundTransparency = 0.2
     fillBar.Parent = sliderBar
-    local fc = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local fc = Instance.new("UICorner")
     fc.CornerRadius = UDim.new(1, 0)
     fc.Parent = fillBar
 
-    -- زر الشريط (القابض)
-    local sliderBtn = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextButton
+    local sliderBtn = Instance.new("TextButton")
     sliderBtn.Size = UDim2.new(0, 22, 0, 22)
     sliderBtn.Position = UDim2.new(0, 0, 0, -6)
     sliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     sliderBtn.BackgroundTransparency = 0.1
     sliderBtn.Text = ""
     sliderBtn.Parent = sliderContainer
-    local sc2 = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local sc2 = Instance.new("UICorner")
     sc2.CornerRadius = UDim.new(1, 0)
     sc2.Parent = sliderBtn
-    local stroke3 = Instance.new(dec("\x56\x15\x13\x17\x17\x1C\x14\x0F\x18"))
+    local stroke3 = Instance.new("UIStroke")
     stroke3.Color = Color3.fromRGB(88, 101, 242)
     stroke3.Thickness = 2
     stroke3.Parent = sliderBtn
 
     -- قيمة الشريط النصية
-    local valLabel = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextLabel
+    local valLabel = Instance.new("TextLabel")
     valLabel.Size = UDim2.new(0, 40, 0, 20)
     valLabel.Position = UDim2.new(1, 10, 0.5, -10)
     valLabel.BackgroundTransparency = 1
-    valLabel.Text = "1.0"
+    valLabel.Text = "1.5"
     valLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
     valLabel.TextSize = 14
     valLabel.Font = Enum.Font.GothamBold
     valLabel.Parent = sliderContainer
 
-    -- [[ منطق سحب الشريط ]]
+    -- منطق السحب
     local dragging = false
-    local dragInput
     local function updateSlider(input)
         local barPos = sliderBar.AbsolutePosition.X
         local barWidth = sliderBar.AbsoluteSize.X
@@ -258,8 +240,6 @@
         applyChest(newVal)
         sliderBtn.Position = UDim2.new(0, offset - 11, 0, -6)
         fillBar.Size = UDim2.new(percent, 0, 1, 0)
-        if textBox then textBox.Text = string.format("%.1f", chestVal) end
-        if valLabel then valLabel.Text = string.format("%.1f", chestVal) end
     end
 
     sliderBtn.InputBegan:Connect(function(input)
@@ -267,14 +247,12 @@
             dragging = true
         end
     end)
-
     sliderBtn.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end)
-
-    uis.InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             updateSlider(input)
         end
@@ -283,30 +261,30 @@
     -- =========================================
     -- 5. مربع الكتابة (TextBox)
     -- =========================================
-    local txtBoxContainer = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- Frame
+    local txtBoxContainer = Instance.new("Frame")
     txtBoxContainer.Size = UDim2.new(0, 120, 0, 36)
     txtBoxContainer.Position = UDim2.new(0.5, -60, 0, 155)
     txtBoxContainer.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
     txtBoxContainer.BackgroundTransparency = 0.3
     txtBoxContainer.Parent = mainFrame
-    local tbc = Instance.new(dec("\x56\x1E\x17\x0E\x0B\x17"))
+    local tbc = Instance.new("UICorner")
     tbc.CornerRadius = UDim.new(0, 8)
     tbc.Parent = txtBoxContainer
-    local stroke4 = Instance.new(dec("\x56\x15\x13\x17\x17\x1C\x14\x0F\x18"))
+    local stroke4 = Instance.new("UIStroke")
     stroke4.Color = Color3.fromRGB(88, 101, 242)
     stroke4.Thickness = 1
     stroke4.Transparency = 0.5
     stroke4.Parent = txtBoxContainer
 
-    local textBox = Instance.new(dec("\x46\x1C\x0B\x0B\x1F\x18\x17\x1C\x14\x0F\x18")) -- TextBox
+    local textBox = Instance.new("TextBox")
     textBox.Size = UDim2.new(1, -10, 1, -6)
     textBox.Position = UDim2.new(0, 5, 0, 3)
     textBox.BackgroundTransparency = 1
-    textBox.Text = "1.0"
+    textBox.Text = "1.5"
     textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     textBox.TextSize = 16
     textBox.Font = Enum.Font.GothamMedium
-    textBox.PlaceholderText = dec("\x41\x14\x1C\x1E\x0B\x1C") -- "القيمة"
+    textBox.PlaceholderText = "القيمة"
     textBox.TextXAlignment = Enum.TextXAlignment.Center
     textBox.Parent = txtBoxContainer
 
@@ -315,12 +293,10 @@
         if num then
             local clamped = math.clamp(num, minVal, maxVal)
             applyChest(clamped)
-            -- تحديث الشريط
             local percent = (clamped - minVal) / (maxVal - minVal)
             local barWidth = sliderBar.AbsoluteSize.X
             sliderBtn.Position = UDim2.new(0, percent * barWidth - 11, 0, -6)
             fillBar.Size = UDim2.new(percent, 0, 1, 0)
-            if valLabel then valLabel.Text = string.format("%.1f", clamped) end
         else
             textBox.Text = string.format("%.1f", chestVal)
         end
@@ -343,7 +319,7 @@
                 dragData.dragging = false
             end
         end)
-        uis.InputChanged:Connect(function(input)
+        UserInputService.InputChanged:Connect(function(input)
             if dragData.dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 local delta = input.Position - dragData.startMouse
                 frame.Position = UDim2.new(
@@ -356,14 +332,11 @@
         end)
     end
 
-    -- جعل القائمة قابلة للسحب (عن طريق شريط العنوان)
     makeDraggable(mainFrame, titleBar)
-
-    -- جعل الزر العائم قابلاً للسحب
     makeDraggable(toggleBtn, toggleBtn)
 
     -- =========================================
-    -- 7. إظهار/إخفاء القائمة عبر الزر العائم
+    -- 7. إظهار/إخفاء القائمة
     -- =========================================
     toggleBtn.MouseButton1Click:Connect(function()
         isOpen = not isOpen
@@ -371,16 +344,14 @@
     end)
 
     -- =========================================
-    -- 8. تشغيل القيم الافتراضية
+    -- 8. تهيئة القيم الأولية
     -- =========================================
     task.wait(0.5)
-    applyChest(1.5) -- قيمة البداية
+    applyChest(1.5)
     local initPercent = (1.5 - minVal) / (maxVal - minVal)
     local barWidth = sliderBar.AbsoluteSize.X
     sliderBtn.Position = UDim2.new(0, initPercent * barWidth - 11, 0, -6)
     fillBar.Size = UDim2.new(initPercent, 0, 1, 0)
-    if valLabel then valLabel.Text = "1.5" end
-    if textBox then textBox.Text = "1.5" end
 
-    print(dec("\x5B\x0F\x18\x14\x15\x08\x20\x4A\x1E\x0B\x1C\x15\x14\x17\x0F\x20\x42\x18\x0B\x15\x21")) -- "✅ تم التفعيل بنجاح !"
+    print("✅ سكربت الصدر يعمل الآن!")
 end)()
